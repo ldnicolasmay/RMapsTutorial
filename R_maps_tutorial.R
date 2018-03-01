@@ -1,5 +1,7 @@
 # R maps tutorial
 
+## this needs to be cleaned up A LOT... but committing for now
+
 install.packages(c("ggplot2", "devtools", "dplyr", "stringr"))
 install.packages(c("maps", "mapdata"))
 install.packages(c("ggmap"))
@@ -110,17 +112,181 @@ head(mi_county_data)
 # inner_join dfs by 'subregion' (ie, county)
 mi_county_data_big <- dplyr::inner_join(mi_counties, mi_county_data, by = "subregion")
 
-mi_base +
-  geom_polygon(data = mi_county_data_big, aes(fill = population), color = "white") +
-  geom_polygon(color = "black", fill = NA) +
-  scale_fill_gradient(trans = "log10") +
-  theme_bw()
+nix_lat_long_grid <- theme(
+  axis.text = element_blank(),
+  axis.line = element_blank(),
+  axis.ticks = element_blank(),
+  panel.border = element_blank(),
+  panel.grid = element_blank(),
+  axis.title = element_blank()
+  )
 
 mi_base +
   geom_polygon(data = mi_county_data_big, aes(fill = density), color = "white") +
   geom_polygon(color = "black", fill = NA) +
-  #scale_fill_gradient(trans = "log10") +
-  theme_bw()
+  theme_bw() +
+  nix_lat_long_grid
+
+mi_base +
+  geom_polygon(data = mi_county_data_big, aes(fill = density), color = "white") +
+  geom_polygon(color = "black", fill = NA) +
+  theme_bw() +
+  scale_fill_gradient(trans = "log10") +
+  nix_lat_long_grid
+
+mi_base +
+  geom_polygon(data = mi_county_data_big, aes(fill = density), color = "white") +
+  geom_polygon(color = "black", fill = NA) +
+  theme_bw() +
+  nix_lat_long_grid +
+  scale_fill_gradientn(colors = rev(terrain.colors(7)),
+                       breaks = c(1, 10, 100, 1000),
+                       trans = "log10")
+
+mi_base +
+  geom_polygon(data = mi_county_data_big, aes(fill = density), color = "white") +
+  geom_polygon(color = "black", fill = NA) +
+  theme_bw() +
+  nix_lat_long_grid +
+  scale_fill_gradientn(colors = rev(rainbow(7)),
+                       breaks = c(1, 10, 100, 1000),
+                       trans = "log10")
+
+### reshape county report data
+library(magrittr)
+UDS_county_report <- read.csv("UMMAPMindsetRegistry_DATA_LABELS_2018-03-01_0852.csv", 
+                              stringsAsFactors = FALSE, na.strings = "")
+UDS_county_report$Event.Name <- as.factor(UDS_county_report$Event.Name)
+UDS_county_report <- UDS_county_report[, c(1, 2, 4, 3)]
+UDS_county_report$Event.Name <- gsub(pattern = " ", replacement = "", x = UDS_county_report$Event.Name)
+unique(UDS_county_report$County)
+UDS_county_report$County <- gsub(pattern = "^Genessee$", replacement = "Genesee", x = UDS_county_report$County)
+UDS_county_report$County <- gsub(pattern = "^Oakand$", replacement = "Oakland", x = UDS_county_report$County)
+UDS_county_report$County <- gsub(pattern = "^Eaton $", replacement = "Eaton", x = UDS_county_report$County)
+
+UDS_county_report %>%
+  tidyr::gather()
+UDS_county_report %>% 
+  tidyr::spread(Event.Name, Exam.Date)
+UDS_county_report %>% 
+  tidyr::unite(Exam.Date_County, Exam.Date, County, sep = "_") %>% 
+  head(.)
+UDS_county_report_wide <- UDS_county_report %>% 
+  tidyr::unite(Exam.Date_County, Exam.Date, County, sep = "_") %>% 
+  tidyr::spread(Event.Name, Exam.Date_County) %>% 
+  tidyr::separate(Baseline, into = c("Baseline.Date", "Baseline.County"), sep = "_") %>% 
+  tidyr::separate(Visit01, into = c("Visit01.Date", "Visit01.County"), sep = "_") %>% 
+  tidyr::separate(Visit02, into = c("Visit02.Date", "Visit02.County"), sep = "_") %>% 
+  tidyr::separate(Visit03, into = c("Visit03.Date", "Visit03.County"), sep = "_") %>% 
+  tidyr::separate(Visit04, into = c("Visit04.Date", "Visit04.County"), sep = "_") %>% 
+  tidyr::separate(Visit05, into = c("Visit05.Date", "Visit05.County"), sep = "_") %>% 
+  tidyr::separate(Visit06, into = c("Visit06.Date", "Visit06.County"), sep = "_") %>% 
+  tidyr::separate(Visit07, into = c("Visit07.Date", "Visit07.County"), sep = "_") %>% 
+  tidyr::separate(Visit08, into = c("Visit08.Date", "Visit08.County"), sep = "_") %>% 
+  tidyr::separate(Visit09, into = c("Visit09.Date", "Visit09.County"), sep = "_")
+UDS_county_report_wide[UDS_county_report_wide == "NA"] <- NA
+UDS_county_report_wide_baseline <- UDS_county_report_wide %>% 
+  dplyr::select(Subject.ID, Baseline.Date, Baseline.County)
+class(UDS_county_report_wide_baseline$Baseline.Date)
+UDS_county_report_wide_baseline$Baseline.Date <- as.Date(UDS_county_report_wide_baseline$Baseline.Date)
+UDS_county_report_wide_baseline <- UDS_county_report_wide_baseline %>% 
+  dplyr::filter(Baseline.Date >= as.Date("2017-03-01"))
+UDS_county_count <- UDS_county_report_wide_baseline %>% 
+  dplyr::group_by(Baseline.County) %>% 
+  dplyr::summarize(Count = n()) %>% 
+  dplyr::rename(subregion = Baseline.County) %>% 
+  na.omit(.)
+UDS_county_count$subregion <- tolower(UDS_county_count$subregion)
+
+# inner join michigan_counties data with UDS county count
+mi_county_data_UDS <- dplyr::left_join(mi_counties, UDS_county_count, by = "subregion")
+
+mi_base_UDS <- ggplot(data = michigan, mapping = aes(x = long, y = lat, group = group)) + 
+  coord_fixed(1.3) + 
+  geom_polygon(color = "black", fill = "gray", size = 0.5)
+mi_base_UDS + theme_nothing()
+mi_base_UDS +
+  geom_polygon(data = mi_county_data_UDS, aes(fill = Count), color = "white", size = 0.1) +
+  geom_polygon(color = "black", fill = NA) +
+  theme_bw() +
+  nix_lat_long_grid +
+  scale_fill_gradient(low = "white", high = "darkblue",
+                      breaks = c(0, 10, 20, 30, 40, 50)) +
+  ggtitle("UDS Participants Counts by County",
+          subtitle = "At Baseline Visit since Mar 2017")
+ggsave("Participant_counts_by_county.png", width = 6, height = 4)
+
+### same map with better data ###########
+### reshape county report data
+library(magrittr)
+UDS_county_report <- read.csv("UMMAPMindsetRegistry_DATA_LABELS_2018-03-01_1114.csv", 
+                              stringsAsFactors = FALSE, na.strings = "")
+sort(unique(UDS_county_report$County))
+UDS_county_report$County <- gsub(pattern = "^Genessee$", replacement = "Genesee", x = UDS_county_report$County)
+UDS_county_report$County <- gsub(pattern = "^Eaton $", replacement = "Eaton", x = UDS_county_report$County)
+sort(unique(UDS_county_report$County))
+UDS_county_report <- UDS_county_report %>%
+  dplyr::select(Subject.ID, County)
+
+# UDS_county_report$Event.Name <- as.factor(UDS_county_report$Event.Name)
+# UDS_county_report <- UDS_county_report[, c(1, 2, 4, 3)]
+# UDS_county_report$Event.Name <- gsub(pattern = " ", replacement = "", x = UDS_county_report$Event.Name)
+# unique(UDS_county_report$County)
+# UDS_county_report$County <- gsub(pattern = "^Genessee$", replacement = "Genesee", x = UDS_county_report$County)
+# UDS_county_report$County <- gsub(pattern = "^Oakand$", replacement = "Oakland", x = UDS_county_report$County)
+# UDS_county_report$County <- gsub(pattern = "^Eaton $", replacement = "Eaton", x = UDS_county_report$County)
+
+# UDS_county_report %>%
+#   tidyr::gather()
+# UDS_county_report %>% 
+#   tidyr::spread(Event.Name, Exam.Date)
+# UDS_county_report %>% 
+#   tidyr::unite(Exam.Date_County, Exam.Date, County, sep = "_") %>% 
+#   head(.)
+# UDS_county_report_wide <- UDS_county_report %>% 
+#   tidyr::unite(Exam.Date_County, Exam.Date, County, sep = "_") %>% 
+#   tidyr::spread(Event.Name, Exam.Date_County) %>% 
+#   tidyr::separate(Baseline, into = c("Baseline.Date", "Baseline.County"), sep = "_") %>% 
+#   tidyr::separate(Visit01, into = c("Visit01.Date", "Visit01.County"), sep = "_") %>% 
+#   tidyr::separate(Visit02, into = c("Visit02.Date", "Visit02.County"), sep = "_") %>% 
+#   tidyr::separate(Visit03, into = c("Visit03.Date", "Visit03.County"), sep = "_") %>% 
+#   tidyr::separate(Visit04, into = c("Visit04.Date", "Visit04.County"), sep = "_") %>% 
+#   tidyr::separate(Visit05, into = c("Visit05.Date", "Visit05.County"), sep = "_") %>% 
+#   tidyr::separate(Visit06, into = c("Visit06.Date", "Visit06.County"), sep = "_") %>% 
+#   tidyr::separate(Visit07, into = c("Visit07.Date", "Visit07.County"), sep = "_") %>% 
+#   tidyr::separate(Visit08, into = c("Visit08.Date", "Visit08.County"), sep = "_") %>% 
+#   tidyr::separate(Visit09, into = c("Visit09.Date", "Visit09.County"), sep = "_")
+# UDS_county_report_wide[UDS_county_report_wide == "NA"] <- NA
+# UDS_county_report_wide_baseline <- UDS_county_report_wide %>% 
+#   dplyr::select(Subject.ID, Baseline.Date, Baseline.County)
+# class(UDS_county_report_wide_baseline$Baseline.Date)
+# UDS_county_report_wide_baseline$Baseline.Date <- as.Date(UDS_county_report_wide_baseline$Baseline.Date)
+# UDS_county_report_wide_baseline <- UDS_county_report_wide_baseline %>% 
+#   dplyr::filter(Baseline.Date >= as.Date("2017-03-01"))
+UDS_county_count <- UDS_county_report %>% 
+  dplyr::group_by(County) %>% 
+  dplyr::summarize(Count = n()) %>% 
+  dplyr::rename(subregion = County) %>% 
+  na.omit(.)
+UDS_county_count$subregion <- tolower(UDS_county_count$subregion)
+
+# inner join michigan_counties data with UDS county count
+mi_county_data_UDS <- dplyr::left_join(mi_counties, UDS_county_count, by = "subregion")
+
+mi_base_UDS <- ggplot(data = michigan, mapping = aes(x = long, y = lat, group = group)) + 
+  coord_fixed(1.3) + 
+  geom_polygon(color = "black", fill = "gray", size = 0.5)
+mi_base_UDS + theme_nothing()
+mi_base_UDS +
+  geom_polygon(data = mi_county_data_UDS, aes(fill = Count), color = "white", size = 0.1) +
+  geom_polygon(color = "black", fill = NA) +
+  theme_bw() +
+  nix_lat_long_grid +
+  scale_fill_gradient(low = "#EFEFEF", high = "darkblue",
+                      breaks = c(1, 20, 40, 60, 80)) +
+  ggtitle("UDS Participant Counts by County",
+          subtitle = "Since March 2017")
+ggsave("Participant_counts_by_county.png", width = 6, height = 4)
 
 
 
