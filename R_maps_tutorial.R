@@ -159,7 +159,7 @@ UDS_county_report <- read.csv("UMMAPMindsetRegistry_DATA_LABELS_2018-03-01_0852.
 UDS_county_report$Event.Name <- as.factor(UDS_county_report$Event.Name)
 UDS_county_report <- UDS_county_report[, c(1, 2, 4, 3)]
 UDS_county_report$Event.Name <- gsub(pattern = " ", replacement = "", x = UDS_county_report$Event.Name)
-unique(UDS_county_report$County)
+sort(unique(UDS_county_report$County))
 UDS_county_report$County <- gsub(pattern = "^Genessee$", replacement = "Genesee", x = UDS_county_report$County)
 UDS_county_report$County <- gsub(pattern = "^Oakand$", replacement = "Oakland", x = UDS_county_report$County)
 UDS_county_report$County <- gsub(pattern = "^Eaton $", replacement = "Eaton", x = UDS_county_report$County)
@@ -198,7 +198,7 @@ UDS_county_count <- UDS_county_report_wide_baseline %>%
   na.omit(.)
 UDS_county_count$subregion <- tolower(UDS_county_count$subregion)
 
-# inner join michigan_counties data with UDS county count
+# left join michigan_counties data and UDS county count
 mi_county_data_UDS <- dplyr::left_join(mi_counties, UDS_county_count, by = "subregion")
 
 mi_base_UDS <- ggplot(data = michigan, mapping = aes(x = long, y = lat, group = group)) + 
